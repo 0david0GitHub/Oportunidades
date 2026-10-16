@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tablero de Control de Oportunidades CRM</title>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkbg: '#0f172a',
+                        darkcard: '#1e293b',
+                        darkborder: '#334155',
+                        accent: '#3b82f6',
+                        accenthover: '#2563eb',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- SheetJS (XLSX) CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- BLOQUEO DE SEGURIDAD INMEDIATO -->
+    <script>
+        if (sessionStorage.getItem('crm_auth') !== 'true') {
+            window.location.href = 'index.html';
+        }
+    </script>
+
+    <!-- Estilos CSS Personalizados -->
+    <style>
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            body {
+                background-color: #ffffff !important;
+                color: #1e293b !important;
+            }
+            .bg-darkcard, .bg-darkbg, .bg-slate-900 {
+                background-color: #ffffff !important;
+                border-color: #e2e8f0 !important;
+                color: #1e293b !important;
+                box-shadow: none !important;
+            }
+            .text-white, .text-slate-100, .text-slate-200, .text-slate-300, .text-slate-400 {
+                color: #1e293b !important;
+            }
+            canvas {
+                max-height: 280px !important;
+                width: 100% !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-darkbg text-slate-100 font-sans antialiased min-h-screen">
+
+    <!-- CONTENEDOR PRINCIPAL -->
+    <div class="max-w-[1600px] mx-auto p-4 md:p-6 space-y-6">
+
+        <!-- 1. HEADER PRINCIPAL -->
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-darkcard p-6 rounded-xl border border-darkborder shadow-lg">
+            <div class="flex items-center gap-3">
+                <div class="p-3 bg-blue-500/10 text-blue-500 rounded-xl border border-blue-500/20">
+                    <i data-lucide="layout-dashboard" class="w-8 h-8"></i>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
+                        Tablero de Control de Oportunidades
+                    </h1>
+                    <p class="text-sm text-slate-400">Monitoreo ejecutivo de ventas, pipeline y métricas clave de CRM</p>
+                </div>
+            </div>
+
+            <!-- Botones de Acción y Usuario -->
+            <div class="flex items-center gap-3 w-full md:w-auto no-print flex-wrap justify-end">
+                <div class="hidden sm:flex flex-col text-right mr-2">
+                    <span id="userEmailDisplay" class="text-xs font-medium text-slate-300">Usuario autenticado</span>
+                    <span class="text-[10px] text-emerald-400 flex items-center justify-end gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Sesión Segura Activa
+                    </span>
+                </div>
+
+                <label class="flex-1 md:flex-none flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition cursor-pointer shadow-sm">
+                    <i data-lucide="upload" class="w-4 h-4"></i>
+                    <span>Cargar Excel</span>
+                    <input type="file" id="excelFileInput" accept=".xlsx, .xls, .csv" class="hidden" onchange="handleFileUpload(event)">
+                </label>
+                <button onclick="window.print()" class="flex-1 md:flex-none flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-darkborder px-4 py-2.5 rounded-lg text-sm font-medium transition shadow-sm">
+                    <i data-lucide="printer" class="w-4 h-4"></i>
+                    <span>Imprimir</span>
+                </button>
+                <button onclick="cerrarSesion()" class="flex items-center justify-center gap-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 px-4 py-2.5 rounded-lg text-sm font-medium transition shadow-sm">
+                    <i data-lucide="log-out" class="w-4 h-4"></i>
+                    <span>Salir</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- 2. FILTROS REPOSITORIOS -->
+        <section class="bg-darkcard p-5 rounded-xl border border-darkborder shadow-lg space-y-4 no-print">
+            <div class="flex items-center justify-between border-b border-darkborder pb-3">
+                <div class="flex items-center gap-2 text-slate-200 font-semibold text-sm">
+                    <i data-lucide="filter" class="w-4 h-4 text-blue-500"></i>
+                    <span>Filtros de búsqueda</span>
+                </div>
+                <button onclick="resetFilters()" class="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition">
+                    <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                    <span>Limpiar Filtros</span>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                <!-- Filtro País -->
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">País</label>
+                    <select id="filterPais" onchange="applyFilters()" class="w-full bg-slate-900 border border-darkborder text-slate-200 text-sm rounded-lg p-2.5 focus:outline-none focus:border-blue-500">
+                        <option value="">Todos los Países</option>
+                    </select>
+                </div>
+
+                <!-- Filtro Specialist -->
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">Sale Specialist</label>
+                    <select id="filterSpecialist" onchange="applyFilters()" class="w-full bg-slate-900 border border-darkborder text-slate-200 text-sm rounded-lg p-2.5 focus:outline-none focus:border-blue-500">
+                        <option value="">Todos los Specialists</option>
+                    </select>
+                </div>
+
+                <!-- Filtro Estado -->
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">Estado</label>
+                    <select id="filterEstado" onchange="applyFilters()" class="w-full bg-slate-900 border border-darkborder text-slate-200 text-sm rounded-lg p-2.5 focus:outline-none focus:border-blue-500">
+                        <option value="">Todos los Estados</option>
+                    </select>
+                </div>
+
+                <!-- Filtro Marca -->
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">Marca</label>
+                    <select id="filterMarca" onchange="applyFilters()" class="w-full bg-slate-900 border border-darkborder text-slate-200 text-sm rounded-lg p-2.5 focus:outline-none focus:border-blue-500">
+                        <option value="">Todas las Marcas</option>
+                    </select>
+                </div>
+
+                <!-- Fecha Cierre Desde -->
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">Fecha Cierre (Desde)</label>
+                    <input type="date" id="filterFechaCieDesde" onchange="applyFilters()" class="w-full bg-slate-900 border border-darkborder text-slate-200 text-sm rounded-lg p-2.5 focus:outline-none focus:border-blue-500">
+                </div>
+
+                <!-- Fecha Cierre Hasta -->
+                <div>
+                    <label class="block text-xs font-medium text-slate-400 mb-1">Fecha Cierre (Hasta)</label>
+                    <input type="date" id="filterFechaCieHasta" onchange="applyFilters()" class="w-full bg-slate-900 border border-darkborder text-slate-200 text-sm rounded-lg p-2.5 focus:outline-none focus:border-blue-500">
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. TARJETAS KPI -->
+        <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Monto Total Pipeline -->
+            <div class="bg-darkcard border border-darkborder rounded-xl p-5 shadow-lg flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Monto Total Pipeline</p>
+                    <h3 id="kpiTotalPipeline" class="text-2xl font-bold text-white mt-1">$0.00</h3>
+                </div>
+                <div class="p-3 bg-blue-500/10 text-blue-500 rounded-lg border border-blue-500/20">
+                    <i data-lucide="dollar-sign" class="w-6 h-6"></i>
+                </div>
+            </div>
+
+            <!-- Monto Ganado -->
+            <div class="bg-darkcard border border-darkborder rounded-xl p-5 shadow-lg flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Monto Ganado</p>
+                    <h3 id="kpiMontoGanado" class="text-2xl font-bold text-emerald-400 mt-1">$0.00</h3>
+                </div>
+                <div class="p-3 bg-emerald-500/10 text-emerald-400 rounded-lg border border-emerald-500/20">
+                    <i data-lucide="trending-up" class="w-6 h-6"></i>
+                </div>
+            </div>
+
+            <!-- Total Registros -->
+            <div class="bg-darkcard border border-darkborder rounded-xl p-5 shadow-lg flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total Registros</p>
+                    <h3 id="kpiTotalRegistros" class="text-2xl font-bold text-purple-400 mt-1">0</h3>
+                </div>
+                <div class="p-3 bg-purple-500/10 text-purple-400 rounded-lg border border-purple-500/20">
+                    <i data-lucide="briefcase" class="w-6 h-6"></i>
+                </div>
+            </div>
+
+            <!-- Tasa de Conversión -->
+            <div class="bg-darkcard border border-darkborder rounded-xl p-5 shadow-lg flex items-center justify-between">
+                <div>
+                    <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Tasa de Conversión</p>
+                    <h3 id="kpiTasaConversion" class="text-2xl font-bold text-amber-400 mt-1">0.0%</h3>
+                </div>
+                <div class="p-3 bg-amber-500/10 text-amber-400 rounded-lg border border-amber-500/20">
+                    <i data-lucide="percent" class="w-6 h-6"></i>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4. VISUALIZACIONES CON CHART.JS -->
+        <section class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <!-- Gráfico de Barras -->
+            <div class="lg:col-span-7 bg-darkcard border border-darkborder rounded-xl p-5 shadow-lg">
+                <h3 class="text-base font-semibold text-white mb-4 flex items-center gap-2">
+                    <i data-lucide="bar-chart-2" class="w-4 h-4 text-blue-500"></i>
+                    Top Cuentas por Monto Total ($)
+                </h3>
+                <div class="relative h-72 w-full">
+                    <canvas id="barChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Gráfico de Dona -->
+            <div class="lg:col-span-5 bg-darkcard border border-darkborder rounded-xl p-5 shadow-lg">
+                <h3 class="text-base font-semibold text-white mb-4 flex items-center gap-2">
+                    <i data-lucide="pie-chart" class="w-4 h-4 text-blue-500"></i>
+                    Distribución por Estado
+                </h3>
+                <div class="relative h-72 w-full flex items-center justify-center">
+                    <canvas id="doughnutChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Gráfico de Tendencia Trimestral (Colspan 12) -->
+            <div class="lg:col-span-12 bg-darkcard border border-darkborder rounded-xl p-5 shadow-lg">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-base font-semibold text-white flex items-center gap-2">
+                        <i data-lucide="trending-up" class="w-4 h-4 text-emerald-400"></i>
+                        Tendencia Trimestral de Cierre ($)
+                    </h3>
+                    <span class="text-xs text-slate-400 bg-slate-900 px-3 py-1 rounded-full border border-darkborder">
+                        Basado en Fecha_Cie
+                    </span>
+                </div>
+                <div class="relative h-80 w-full">
+                    <canvas id="quarterlyChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- 5. TABLA DE DETALLE -->
+        <section class="bg-darkcard border border-darkborder rounded-xl shadow-lg overflow-hidden space-y-4">
+            <!-- Encabezado de la Tabla -->
+            <div class="p-5 pb-0 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <h3 class="text-lg font-bold text-white flex items-center gap-2">
+                    <i data-lucide="table" class="w-5 h-5 text-emerald-400"></i>
+                    Detalle de Oportunidades CRM
+                </h3>
+                <div class="relative w-full sm:w-80 no-print">
+                    <i data-lucide="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                    <input type="text" id="tableSearch" onkeyup="applyFilters()" placeholder="Buscar en la tabla..." class="w-full bg-slate-900 border border-darkborder rounded-lg pl-9 pr-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-blue-500">
+                </div>
+            </div>
+
+            <!-- Tabla -->
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm text-slate-300">
+                    <thead class="bg-slate-900 text-slate-400 text-xs uppercase font-semibold border-y border-darkborder">
+                        <tr>
+                            <th class="px-4 py-3">ID CRM</th>
+                            <th class="px-4 py-3">País</th>
+                            <th class="px-4 py-3">Fecha Ini</th>
+                            <th class="px-4 py-3">Cuenta</th>
+                            <th class="px-4 py-3">Fecha Cie</th>
+                            <th class="px-4 py-3">Sale Specialist</th>
+                            <th class="px-4 py-3">Producto</th>
+                            <th class="px-4 py-3">Marca</th>
+                            <th class="px-4 py-3 text-right">Total ($)</th>
+                            <th class="px-4 py-3 text-center">Estado</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody" class="divide-y divide-darkborder">
+                        <!-- Filas Renderizadas Dinámicamente -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Mensaje Sin Datos -->
+            <div id="noDataMessage" class="hidden p-8 text-center text-slate-500 space-y-2">
+                <i data-lucide="database" class="w-8 h-8 mx-auto text-slate-600"></i>
+                <p class="text-sm">No se encontraron oportunidades que coincidan con los filtros aplicados.</p>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- SCRIPT DE LÓGICA Y PROGRAMACIÓN -->
+    <script>
+        let currentDataset = [];
+        let barChartInst = null;
+        let doughnutChartInst = null;
+        let quarterlyChartInst = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            const email = sessionStorage.getItem('user_email');
+            if (email) {
+                document.getElementById('userEmailDisplay').textContent = email;
+            }
+            populateFilterSelects();
+            applyFilters();
+        });
+
+        function cerrarSesion() {
+            sessionStorage.removeItem('crm_auth');
+            sessionStorage.removeItem('user_email');
+            window.location.href = 'index.html';
+        }
+
+        function formatCurrency(val) {
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val || 0);
+        }
+
+        function parseDateDDMMYYYY(dateStr) {
+            if (!dateStr) return null;
+            if (dateStr instanceof Date) return dateStr;
+
+            const str = String(dateStr).trim();
+            const parts = str.split('/');
+            if (parts.length === 3) {
+                const day = parseInt(parts[0], 10);
+                const month = parseInt(parts[1], 10) - 1;
+                const year = parseInt(parts[2], 10);
+                return new Date(year, month, day);
+            }
+            const d = new Date(str);
+            return isNaN(d.getTime()) ? null : d;
+        }
+
+        function formatDateDDMMYYYY(dateVal) {
+            const d = parseDateDDMMYYYY(dateVal);
+            if (!d) return dateVal || '';
+            const day = String(d.getDate()).padStart(2, '0');
+            const month = String(d.getMonth() + 1).padStart(2, '0');
+            const year = d.getFullYear();
+            return `${day}/${month}/${year}`;
+        }
+
+        function getQuarterLabel(dateObj) {
+            if (!dateObj) return 'N/A';
+            const m = dateObj.getMonth();
+            if (m >= 0 && m <= 2) return 'Q1';
+            if (m >= 3 && m <= 5) return 'Q2';
+            if (m >= 6 && m <= 8) return 'Q3';
+            if (m >= 9 && m <= 11) return 'Q4';
+            return 'N/A';
+        }
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const jsonRaw = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+                if (jsonRaw.length > 0) {
+                    currentDataset = jsonRaw.map(row => parseRow(row));
+                    populateFilterSelects();
+                    applyFilters();
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function parseRow(row) {
+            const findVal = (keys) => {
+                for (let k of keys) {
+                    const match = Object.keys(row).find(rk => rk.trim().toLowerCase() === k.toLowerCase());
+                    if (match !== undefined) return row[match];
+                }
+                return '';
+            };
+
+            const rawTotal = findVal(['Total', 'Total ', 'Monto', 'Amount']);
+            let totalVal = 0;
+            if (typeof rawTotal === 'number') {
+                totalVal = rawTotal;
+            } else if (typeof rawTotal === 'string') {
+                totalVal = parseFloat(rawTotal.replace(/[^0-9.-]+/g, '')) || 0;
+            }
+
+            return {
+                ID_CRM: findVal(['ID_CRM', 'ID CRM', 'ID']),
+                Pais: String(findVal(['Pais', 'País', 'Country'])).trim().toUpperCase(),
+                Fecha_Ini: formatDateDDMMYYYY(findVal(['Fecha_Ini', 'Fecha Ini', 'Fecha Inicio'])),
+                Cuenta: String(findVal(['Cuenta', 'Account', 'Cliente'])).trim(),
+                Fecha_Cie: formatDateDDMMYYYY(findVal(['Fecha_Cie', 'Fecha Cie', 'Fecha Cierre'])),
+                Oportunidad: String(findVal(['Oportunidad', 'Opportunity'])).trim(),
+                Sale_Specialist: String(findVal(['Sale_Specialist', 'Sale Specialist', 'Specialist', 'Vendedor'])).trim(),
+                Producto: String(findVal(['Producto', 'Product'])).trim(),
+                Marca: String(findVal(['Marca', 'Brand'])).trim(),
+                Total: totalVal,
+                Estado: String(findVal(['Estado', 'Status', 'State'])).trim()
+            };
+        }
+
+        function populateFilterSelects() {
+            const getUnique = (key) => [...new Set(currentDataset.map(item => item[key]))].filter(Boolean).sort();
+
+            fillSelectOptions('filterPais', getUnique('Pais'), 'Todos los Países');
+            fillSelectOptions('filterSpecialist', getUnique('Sale_Specialist'), 'Todos los Specialists');
+            fillSelectOptions('filterEstado', getUnique('Estado'), 'Todos los Estados');
+            fillSelectOptions('filterMarca', getUnique('Marca'), 'Todas las Marcas');
+        }
+
+        function fillSelectOptions(elemId, values, defaultText) {
+            const select = document.getElementById(elemId);
+            const currentVal = select.value;
+            select.innerHTML = `<option value="">${defaultText}</option>`;
+            values.forEach(val => {
+                select.innerHTML += `<option value="${val}">${val}</option>`;
+            });
+            select.value = currentVal;
+        }
+
+        function applyFilters() {
+            const pais = document.getElementById('filterPais').value;
+            const specialist = document.getElementById('filterSpecialist').value;
+            const estado = document.getElementById('filterEstado').value;
+            const marca = document.getElementById('filterMarca').value;
+            const fechaDesdeStr = document.getElementById('filterFechaCieDesde').value;
+            const fechaHastaStr = document.getElementById('filterFechaCieHasta').value;
+            const searchStr = document.getElementById('tableSearch').value.toLowerCase().trim();
+
+            const fechaDesde = fechaDesdeStr ? new Date(fechaDesdeStr + 'T00:00:00') : null;
+            const fechaHasta = fechaHastaStr ? new Date(fechaHastaStr + 'T23:59:59') : null;
+
+            const filtered = currentDataset.filter(item => {
+                if (pais && item.Pais !== pais) return false;
+                if (specialist && item.Sale_Specialist !== specialist) return false;
+                if (estado && item.Estado !== estado) return false;
+                if (marca && item.Marca !== marca) return false;
+
+                if (fechaDesde || fechaHasta) {
+                    const dateCie = parseDateDDMMYYYY(item.Fecha_Cie);
+                    if (dateCie) {
+                        if (fechaDesde && dateCie < fechaDesde) return false;
+                        if (fechaHasta && dateCie > fechaHasta) return false;
+                    }
+                }
+
+                if (searchStr) {
+                    const matchText = `${item.ID_CRM} ${item.Cuenta} ${item.Producto} ${item.Sale_Specialist} ${item.Pais} ${item.Marca}`.toLowerCase();
+                    if (!matchText.includes(searchStr)) return false;
+                }
+
+                return true;
+            });
+
+            updateKPIs(filtered);
+            updateCharts(filtered);
+            renderTable(filtered);
+        }
+
+        function resetFilters() {
+            document.getElementById('filterPais').value = '';
+            document.getElementById('filterSpecialist').value = '';
+            document.getElementById('filterEstado').value = '';
+            document.getElementById('filterMarca').value = '';
+            document.getElementById('filterFechaCieDesde').value = '';
+            document.getElementById('filterFechaCieHasta').value = '';
+            document.getElementById('tableSearch').value = '';
+            applyFilters();
+        }
+
+        function updateKPIs(data) {
+            const totalPipeline = data.reduce((sum, item) => sum + (item.Total || 0), 0);
+            const ganadas = data.filter(item => (item.Estado || '').toLowerCase() === 'ganada');
+            const montoGanado = ganadas.reduce((sum, item) => sum + (item.Total || 0), 0);
+            const totalRegs = data.length;
+            const conversionRate = totalRegs > 0 ? ((ganadas.length / totalRegs) * 100).toFixed(1) : '0.0';
+
+            document.getElementById('kpiTotalPipeline').innerText = formatCurrency(totalPipeline);
+            document.getElementById('kpiMontoGanado').innerText = formatCurrency(montoGanado);
+            document.getElementById('kpiTotalRegistros').innerText = totalRegs;
+            document.getElementById('kpiTasaConversion').innerText = `${conversionRate}%`;
+        }
+
+        function updateCharts(data) {
+            const accMap = {};
+            data.forEach(item => {
+                const acc = item.Cuenta || 'Desconocido';
+                accMap[acc] = (accMap[acc] || 0) + (item.Total || 0);
+            });
+
+            const sortedTopAccs = Object.entries(accMap)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 7);
+
+            const barLabels = sortedTopAccs.map(i => i[0].length > 18 ? i[0].substring(0, 18) + '...' : i[0]);
+            const barData = sortedTopAccs.map(i => i[1]);
+
+            if (barChartInst) barChartInst.destroy();
+            const barCtx = document.getElementById('barChart').getContext('2d');
+            barChartInst = new Chart(barCtx, {
+                type: 'bar',
+                data: {
+                    labels: barLabels,
+                    datasets: [{
+                        label: 'Monto Total ($)',
+                        data: barData,
+                        backgroundColor: '#3b82f6',
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => ` Total: ${formatCurrency(ctx.raw)}`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { ticks: { color: '#94a3b8' }, grid: { display: false } },
+                        y: { ticks: { color: '#94a3b8' }, grid: { color: '#334155' } }
+                    }
+                }
+            });
+
+            const estadoMap = {};
+            data.forEach(item => {
+                const est = item.Estado || 'Sin Estado';
+                estadoMap[est] = (estadoMap[est] || 0) + 1;
+            });
+
+            const estadoColors = {
+                'ganada': '#10b981',
+                'abierta': '#3b82f6',
+                'oportunidad': '#f59e0b',
+                'perdida': '#ef4444'
+            };
+
+            const doughnutLabels = Object.keys(estadoMap);
+            const doughnutData = Object.values(estadoMap);
+            const doughnutBg = doughnutLabels.map(l => estadoColors[l.toLowerCase()] || '#8b5cf6');
+
+            if (doughnutChartInst) doughnutChartInst.destroy();
+            const doughnutCtx = document.getElementById('doughnutChart').getContext('2d');
+            doughnutChartInst = new Chart(doughnutCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: doughnutLabels,
+                    datasets: [{
+                        data: doughnutData,
+                        backgroundColor: doughnutBg,
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '65%',
+                    plugins: {
+                        legend: { position: 'bottom', labels: { color: '#cbd5e1', padding: 12 } }
+                    }
+                }
+            });
+
+            const quarterlyTotals = { 'Q1': 0, 'Q2': 0, 'Q3': 0, 'Q4': 0 };
+            data.forEach(item => {
+                const d = parseDateDDMMYYYY(item.Fecha_Cie);
+                const q = getQuarterLabel(d);
+                if (quarterlyTotals[q] !== undefined) {
+                    quarterlyTotals[q] += (item.Total || 0);
+                }
+            });
+
+            const qLabels = ['Trimestre 1 (Q1)', 'Trimestre 2 (Q2)', 'Trimestre 3 (Q3)', 'Trimestre 4 (Q4)'];
+            const qValues = [quarterlyTotals['Q1'], quarterlyTotals['Q2'], quarterlyTotals['Q3'], quarterlyTotals['Q4']];
+
+            if (quarterlyChartInst) quarterlyChartInst.destroy();
+            const qCtx = document.getElementById('quarterlyChart').getContext('2d');
+
+            const gradient = qCtx.createLinearGradient(0, 0, 0, 300);
+            gradient.addColorStop(0, 'rgba(16, 185, 129, 0.4)');
+            gradient.addColorStop(1, 'rgba(59, 130, 246, 0.05)');
+
+            quarterlyChartInst = new Chart(qCtx, {
+                type: 'line',
+                data: {
+                    labels: qLabels,
+                    datasets: [{
+                        label: 'Monto Proyectado ($)',
+                        data: qValues,
+                        borderColor: '#10b981',
+                        borderWidth: 3,
+                        backgroundColor: gradient,
+                        fill: true,
+                        tension: 0.4,
+                        pointBackgroundColor: '#10b981',
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2,
+                        pointRadius: 6,
+                        pointHoverRadius: 9,
+                        pointHoverBackgroundColor: '#3b82f6',
+                        pointHoverBorderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: '#1e293b',
+                            titleColor: '#ffffff',
+                            bodyColor: '#10b981',
+                            borderColor: '#334155',
+                            borderWidth: 1,
+                            padding: 12,
+                            displayColors: false,
+                            callbacks: {
+                                label: (ctx) => ` Total Cierre: ${formatCurrency(ctx.raw)}`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { ticks: { color: '#94a3b8', font: { weight: '600' } }, grid: { display: false } },
+                        y: {
+                            ticks: {
+                                color: '#94a3b8',
+                                callback: (val) => '$' + (val / 1000).toFixed(0) + 'k'
+                            },
+                            grid: { color: '#334155' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderTable(data) {
+            const tbody = document.getElementById('tableBody');
+            const noData = document.getElementById('noDataMessage');
+            tbody.innerHTML = '';
+
+            if (data.length === 0) {
+                noData.classList.remove('hidden');
+                return;
+            } else {
+                noData.classList.add('hidden');
+            }
+
+            data.forEach(item => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-800/50 transition';
+
+                const badgeClass = getBadgeClass(item.Estado);
+
+                tr.innerHTML = `
+                    <td class="px-4 py-3 font-mono text-xs text-slate-400">${item.ID_CRM || '-'}</td>
+                    <td class="px-4 py-3 font-semibold text-slate-200">${item.Pais}</td>
+                    <td class="px-4 py-3 text-slate-400 text-xs">${item.Fecha_Ini}</td>
+                    <td class="px-4 py-3 font-medium text-white max-w-xs truncate" title="${item.Cuenta}">${item.Cuenta}</td>
+                    <td class="px-4 py-3 text-slate-400 text-xs">${item.Fecha_Cie}</td>
+                    <td class="px-4 py-3 text-slate-300">${item.Sale_Specialist}</td>
+                    <td class="px-4 py-3 text-slate-300 max-w-xs truncate" title="${item.Producto}">${item.Producto}</td>
+                    <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-xs bg-slate-900 border border-darkborder font-mono">${item.Marca}</span></td>
+                    <td class="px-4 py-3 text-right font-mono font-semibold text-white">${formatCurrency(item.Total)}</td>
+                    <td class="px-4 py-3 text-center">
+                        <span class="px-2.5 py-1 rounded-full text-xs font-semibold ${badgeClass}">
+                            ${item.Estado}
+                        </span>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function getBadgeClass(estado) {
+            switch ((estado || '').toLowerCase()) {
+                case 'ganada':
+                    return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+                case 'abierta':
+                    return 'bg-blue-500/10 text-blue-400 border border-blue-500/20';
+                case 'oportunidad':
+                    return 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
+                case 'perdida':
+                    return 'bg-red-500/10 text-red-400 border border-red-500/20';
+                default:
+                    return 'bg-slate-700 text-slate-300 border border-slate-600';
+            }
+        }
+    </script>
+</body>
+</html>
